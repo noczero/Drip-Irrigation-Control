@@ -6,7 +6,7 @@
 #include <ezTime.h>
 
 
-#define DEBUG // uncomment to debug data
+//#define DEBUG // uncomment to debug data
 
 // declare pin
 #define DHTPIN D7    // Label : D7
@@ -33,13 +33,19 @@ FirebaseData firebaseData;
 FirebaseJson json;
 
 // wifi configuration 
-#define ssid "kawung ece"
-#define password "tuti17745"
+#define ssid "NASTA BAWAH_plus"
+#define password "Nasta2b40"
 
 // datetime for automation
 Timezone IDTime;
 String dateTimeNow = "";
 
+
+// decalare variable used
+int soilHumidityValue[20]; // array length 20
+float phValue[12]; // ph length 12
+boolean solenoidPrimerStatus[20];
+boolean waterPumpStatus, solenoidWaterStatus, solenoidTreatStatus;
 
 // Read DHT 22 with interval 2 seconds
 unsigned long intervalDHT = 2000;    // the time we need to wait
@@ -116,6 +122,16 @@ int soilHumidity[20]; // make array soil humidity, length is 20
 int solenoidSensor[22];
 int numberPHSensor[12];
 void sendDataToFirebase(){
+  // update temperature
+  json.clear();
+  json.add("temperature", temperature);
+  boolean status_temperature = Firebase.updateNode(firebaseData, node_path, json);
+
+   // update humidity
+  json.clear();
+  json.add("humidity", humidity);
+  boolean status_humidity = Firebase.updateNode(firebaseData, node_path, json);
+
   // clear json
   json.clear();
 
@@ -124,19 +140,53 @@ void sendDataToFirebase(){
   {
     /* code */
     String key = "TA" + String(i+1);
-    json.add(key, soilHumidity[i]);
+    json.add(key, soilHumidityValue[i]);
   }
   // bulk update node
   boolean status_soil = Firebase.updateNode(firebaseData, node_path + "/soil_humidity", json);
   
   json.clear(); // reset json
 
+  // update ph value
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    String key = "TA" + String(i+1);
+    json.add(key, phValue[i]);
+  }
+  // bulk update node
+  boolean status_ph = Firebase.updateNode(firebaseData, node_path + "/ph", json);
+
+   
+  json.clear(); // reset json
+
+  // update solenoid value
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    String key = "TA" + String(i+1);
+    json.add(key, solenoidPrimerStatus[i]);
+  }
+
+  // rest of solenoid
+  json.add("solenoid_water" , solenoidWaterStatus );
+  json.add("solenoid_treat" , solenoidTreatStatus );
+  json.add("water_pump" , waterPumpStatus );
+  
+  // bulk update node
+  boolean status_solenoid = Firebase.updateNode(firebaseData, node_path + "/solenoid", json);
+
+ 
+  if (status_ph && status_solenoid && status_soil && status_temperature && status_humidity){
+    Serial.println("Success, update to firebase");
+  }
+
 }
 
 // read JSON
 void readSerialDataReceived()
 {
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<2048> doc;
   //JsonObject root = doc.parseObject(softSerial);
 
   auto error = deserializeJson(doc, softSerial);
@@ -147,9 +197,39 @@ void readSerialDataReceived()
     return;
   }
   Serial.println("JSON received and parsed");
-  String relay_status = doc["relay_status"];
+  //String relay_status = doc["solenoid"];
 
-  Serial.println(relay_status);
+  // parse soil humidty
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    soilHumidityValue[i] = doc["soil_humidity"][i];
+  }
+  
+  
+  // parse ph value
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    phValue[i] = doc["ph"][i];
+  }
+
+  // parse solenoid primer
+  
+  // parse soil humidty
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    solenoidPrimerStatus[i] = doc["solenoid"][i];
+  }
+
+  // the rest of solenoid
+  waterPumpStatus = doc["solenoid"][22];
+  solenoidTreatStatus = doc["solenoid"][21];
+  solenoidWaterStatus = doc["solenoid"][20];
+
+
+  //Serial.println(humidity_value);
 }
 
 // debug mode, print information to serial
@@ -169,8 +249,49 @@ void debug()
     Serial.print(humidity);
     Serial.print(", Temperature (C): ");
     Serial.print(temperature);
+    Serial.print(", Soil Hum.:[");
 
-    Serial.println();
+    // debug received value from aarduino
+     // parse soil humidty
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    Serial.print(soilHumidityValue[i]);
+    Serial.print(",");
+  }
+  Serial.print("]");
+  Serial.print(", pH : [ ");
+  
+  // parse ph value
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    Serial.print(phValue[i]);
+    Serial.print(",");
+  }
+  
+  Serial.print("]");
+  Serial.print(", solenoid : [ ");
+  
+
+  // parse solenoid primer
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    Serial.print(solenoidPrimerStatus[i]);
+    Serial.print(",");
+  }
+
+  Serial.print("] Solenoid Water : ");
+  Serial.print(solenoidWaterStatus);
+
+  Serial.print(", Solenoid Treat : ");
+  Serial.print(solenoidTreatStatus);
+
+  Serial.print(", Water Pump : ");
+  Serial.print(waterPumpStatus);
+
+  Serial.println();
   }
 #endif
 }
@@ -214,10 +335,10 @@ void loop()
   readSerialDataReceived();
 
   // invoke debug
-  //debug();
+  debug();
 
   // send data to firebase
- // sendDataToFirebase();
+  sendDataToFirebase();
 
   // eztime
   // events(); 

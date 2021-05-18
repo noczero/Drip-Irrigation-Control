@@ -1,3 +1,10 @@
+/* 
+To do :
+1. Read soil moist (done)
+2. Read all ph (done)
+3. Send data to esp8266 
+4. Add logic for controling solenoid
+*/
 
 #include <Arduino.h>
 #include "I2CScanner.h"
@@ -45,7 +52,7 @@ boolean solenoidPrimerStatus[20];
 
 // relay command
 int relay_command_id = -1; // set init value
-
+String command_status = ""; // this value store command, available command water for watering, treat for treatment. 
 
 I2CScanner scanner;
 
@@ -60,7 +67,7 @@ void i2cScanner(){
 
 // send data to esp8266
 void sendDataToESP8266(){
-	DynamicJsonDocument doc(1024);
+	DynamicJsonDocument doc(2048);
 
 	// send solenoid status
 	JsonArray solenoidJson = doc.createNestedArray("solenoid");
@@ -104,6 +111,8 @@ void readDataFromESP8266(){
 		return;
 	}
 	
+	String _command_status = doc["cmd_status"]; // water or treat
+	command_status = _command_status; // set this
 
 	relay_command_id = doc["relay_cmd_id"];
 	
