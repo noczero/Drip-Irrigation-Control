@@ -12,6 +12,8 @@ To do :
 #include <ArduinoJson.h>
 #include <Adafruit_ADS1X15.h>
 
+#define DEBUG
+
 // relay define
 #define R1 22
 #define R2 24
@@ -65,38 +67,50 @@ void i2cScanner(){
 	scanner.Scan();
 }
 
+
 // send data to esp8266
+unsigned long intervalSendData = 1000; // the time we need to wait 2 minutes
+unsigned long previousMillisSendData = 0; // millis() returns an unsigned long.
 void sendDataToESP8266(){
-	DynamicJsonDocument doc(2048);
-
-	// send solenoid status
-	JsonArray solenoidJson = doc.createNestedArray("solenoid");
-	for (int i = 0; i < 20; i++)
+	unsigned long currentMillis = millis(); // grab current time
+	// check if "interval" time has passed (2000 milliseconds)
+	if ((unsigned long)(currentMillis - previousMillisSendData) >= intervalSendData)
 	{
-		solenoidJson.add(solenoidPrimerStatus[i]);
-	}
-	solenoidJson.add(digitalRead(RSolenoidWater)); // index 20
-	solenoidJson.add(digitalRead(RSolenoidTreat)); // index 21
-	solenoidJson.add(digitalRead(RPump)); // index 22
-	
-	// send humidity value
-	JsonArray soilHumidityJson = doc.createNestedArray("soil_humidity");
-	for (int i = 0; i < 20; i++)
-	{
-		soilHumidityJson.add(soilHumidityValue[i]);
-	}
+		
+		previousMillisSendData = millis(); // grab current time as previous millis
 
-	// send ph Value
-	JsonArray phJson = doc.createNestedArray("ph");
-	for (int i = 0; i < 12; i++)
-	{
-		phJson.add(phValue[i]);
-	}
-	
+		DynamicJsonDocument doc(1024);
 
-	// check Serial 1 available
-	Serial.println("send...");
-	serializeJson(doc, Serial1);
+		// send solenoid status
+		JsonArray solenoidJson = doc.createNestedArray("solenoid");
+		for (int i = 0; i < 20; i++)
+		{
+			solenoidJson.add(solenoidPrimerStatus[i]);
+		}
+		solenoidJson.add(digitalRead(RSolenoidWater)); // index 20
+		solenoidJson.add(digitalRead(RSolenoidTreat)); // index 21
+		solenoidJson.add(digitalRead(RPump)); // index 22
+		
+		// send humidity value
+		JsonArray soilHumidityJson = doc.createNestedArray("soil_humidity");
+		for (int i = 0; i < 20; i++)
+		{
+			soilHumidityJson.add(soilHumidityValue[i]);
+		}
+
+		// send ph Value
+		JsonArray phJson = doc.createNestedArray("ph");
+		for (int i = 0; i < 12; i++)
+		{
+			phJson.add(phValue[i]);
+		}
+		
+
+		// check Serial 1 available
+		Serial.println("send...");
+		doc["header"] = "OK"; // cek header
+		serializeJson(doc, Serial1);
+	}
 }
 
 // read data from esp8266
@@ -207,8 +221,15 @@ void monitoring(){
 		// read sensor
 		readSoilHumidity();
 		readPH();
+
+		// read relay
+		readRelay();
+
+		// send data
+		//sendDataToESP8266();
 	}
 }
+
 
 unsigned long intervalctrlR1 = 1000*60*2; // the time we need to wait 2 minutes
 unsigned long previousMillisctrlR1 = 0; // millis() returns an unsigned long.
@@ -222,6 +243,65 @@ void ctrlR1(){
 		// shutdown the relay
 		digitalWrite(relay_command_id, LOW);
 	}
+}
+
+// debug mode, print information to serial
+unsigned long intervalDEBUG = 500;     // the time we need to wait
+unsigned long previousMillisDEBUG = 0; // millis() returns an unsigned long.
+void debug()
+{
+#ifdef DEBUG
+  unsigned long currentMillis = millis(); // grab current time
+  // check if "interval" time has passed (2000 milliseconds)
+  if ((unsigned long)(currentMillis - previousMillisDEBUG) >= intervalDEBUG)
+  {
+    previousMillisDEBUG = millis(); // grab current time as previous millis
+
+    Serial.print(", Soil Hum.:[");
+
+    // debug received value from aarduino
+     // parse soil humidty
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    Serial.print(soilHumidityValue[i]);
+    Serial.print(",");
+  }
+  Serial.print("]");
+  Serial.print(", pH : [ ");
+  
+  // parse ph value
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    Serial.print(phValue[i]);
+    Serial.print(",");
+  }
+  
+  Serial.print("]");
+  Serial.print(", solenoid : [ ");
+  
+
+  // parse solenoid primer
+  for (int i = 0; i < 20; i++)
+  {
+    /* code */
+    Serial.print(solenoidPrimerStatus[i]);
+    Serial.print(",");
+  }
+
+  Serial.print("] Solenoid Water : ");
+  Serial.print(digitalRead(RSolenoidWater));
+
+  Serial.print(", Solenoid Treat : ");
+  Serial.print(digitalRead(RSolenoidTreat));
+
+  Serial.print(", Water Pump : ");
+  Serial.print(digitalRead(RPump));
+
+  Serial.println();
+  }
+#endif
 }
 
 
@@ -251,7 +331,9 @@ void loop()
 
 	sendDataToESP8266();
 
-	readDataFromESP8266();
+	//readDataFromESP8266();
+
+	debug();
 	
 	delay(10);
 }
