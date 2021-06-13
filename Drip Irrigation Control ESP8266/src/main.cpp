@@ -12,9 +12,8 @@
 #include <ESP8266WiFi.h>
 #include <ezTime.h>
 #include <Wire.h>
-#include <EasyTransferI2C.h>
 
-//#define DEBUG // uncomment to debug data
+#define DEBUG // uncomment to debug data
 
 // declare pin
 #define DHTPIN D7    // Label : D7
@@ -55,45 +54,31 @@ String dateTimeNow = "";
 
 // decalare variable used
 String soilHumidityValue[20]; // array length 20
-int phValue[12];           // ph length 12
+int phValue[12];              // ph length 12
 String solenoidPrimerStatus[20];
 String waterPumpStatus, solenoidWaterStatus, solenoidTreatStatus;
 
-// i2c data structure
-struct SEND_DATA_STRUCTURE
-{
-  //put your variable definitions here for the data you want to send
-  //THIS MUST BE EXACTLY THE SAME ON THE OTHER ARDUINO
-  int soilHumidityValue[20];
-  int phValue[12];
-  boolean solenoidPrimerStatus[20];
-};
-
-SEND_DATA_STRUCTURE myData;
-
-//create object Easy Transfer
-EasyTransferI2C ET;
-
 void setupI2CCom()
 {
-  // Slave
-  // Wire.begin(D1,D2,4);
-  // Wire.onReceive(receiveEvent); // register event
 
   // Master
   Wire.begin(D1, D2);
   Wire.setTimeout(6000);
-
-  //start the library, pass in the data details and the name of the serial port. Can be Serial, Serial1, Serial2, etc.
-  // ET.begin(details(myData), &Wire);
 }
 
+String cmdCode; // WATER/TREAT,1..20
 void sendToSlave()
 {
+  //cmdCode = "WATER,1";
+  //sprintf(commandData, commandFormat, cmdCode);
+
+  // String to array
+  char responseChar[12];
+  cmdCode.toCharArray(responseChar, 12);
+
   Wire.beginTransmission(I2CAddressMaster); /* begin with device address 8 */
-  Wire.write("CMD, WATER, 1");              /* sends hello string */
+  Wire.write(responseChar);              /* sends hello string */
   Wire.endTransmission();                   /* stop transmitting */
-  // delay(10);
 }
 
 String reverseSolenoidData(String c)
@@ -130,11 +115,6 @@ void readFromSlave()
 {
   int nBytes = Wire.requestFrom(I2CAddressMaster, RECEIVEBYTES); /* request & read data of size 13 from slave */
 
-  // if(ET.receiveData()){
-  //     Serial.println(myData.phValue[0]);
-  //     Serial.println(myData.soilHumidityValue[0]);
-  //     Serial.println(myData.solenoidPrimerStatus[0]);
-  // }
   String response = "";
   int i = 0;
   if (nBytes == RECEIVEBYTES)
@@ -147,9 +127,9 @@ void readFromSlave()
       i++;
     }
   }
-  Serial.println(response);
-  Serial.println(i);
-  Serial.println(nBytes);
+  // Serial.println(response);
+  // Serial.println(i);
+  // Serial.println(nBytes);
 
   // String to array
   char responseChar[RECEIVEBYTES + 1];
@@ -169,7 +149,7 @@ void readFromSlave()
     rows++;
   }
 
-  Serial.println(rows);
+  // Serial.println(rows);
 
   // validation for parsing
   if (rows == VALIDROWS)
@@ -184,9 +164,9 @@ void readFromSlave()
     for (int i = 1; i < 56; i++)
     {
       // INDEX 1 - 20 SOIL, Solenoid: 21 - 43 (41 [water],42[treat],43[pump]), pH : 44 - 45
-      Serial.print(i);
-      Serial.print("-");
-      Serial.println(receivedData[i]);
+      //Serial.print(i);
+      //Serial.print("-");
+      //Serial.println(receivedData[i]);
 
       //if (i == 0){
       //  continue;
@@ -202,32 +182,32 @@ void readFromSlave()
       if (i > 0 && i <= 20)
       {
         soilHumidityValue[dataIndex] = reverseSoilHumidityData(receivedData[i]);
-        Serial.println(soilHumidityValue[dataIndex]);
+        //Serial.println(soilHumidityValue[dataIndex]);
       }
       else if (i > 20 && i <= 40)
       {
         solenoidPrimerStatus[dataIndex] = reverseSolenoidData(receivedData[i]);
-        Serial.println(solenoidPrimerStatus[dataIndex]);
+        //Serial.println(solenoidPrimerStatus[dataIndex]);
       }
       else if (i == 41)
       {
         solenoidWaterStatus = reverseSolenoidData(receivedData[i]);
-        Serial.println(solenoidWaterStatus);
+        //Serial.println(solenoidWaterStatus);
       }
       else if (i == 42)
       {
         solenoidTreatStatus = reverseSolenoidData(receivedData[i]);
-        Serial.println(solenoidTreatStatus);
+        //Serial.println(solenoidTreatStatus);
       }
       else if (i == 43)
       {
         waterPumpStatus = reverseSolenoidData(receivedData[i]);
-        Serial.println(waterPumpStatus);
+        //Serial.println(waterPumpStatus);
       }
       else if (i > 43 && i <= 55)
       {
         phValue[dataIndex] = receivedData[i].toInt();
-        Serial.println(phValue[dataIndex]);
+        //Serial.println(phValue[dataIndex]);
       }
 
       dataIndex++;
@@ -393,71 +373,27 @@ void sendDataToFirebase()
   }
 }
 
-// // read JSON
-// unsigned long intervalReadSerial = 500;     // the time we need to wait
-// unsigned long previousMillisReadSerial = 0; // millis() returns an unsigned long.
-// void readSerialDataReceived()
-// {
-//   unsigned long currentMillis = millis(); // grab current time
-//   // check if "interval" time has passed (200 milliseconds)
-//   if ((unsigned long)(currentMillis - previousMillisReadSerial) >= intervalReadSerial)
-//   {
-//     previousMillisReadSerial = millis(); // grab current time as previous millis
 
-//     StaticJsonDocument<1024> doc;
-//     //JsonObject root = doc.parseObject(softSerial);
+// send data to firebase
+unsigned long intervalGetDataFromFirebase = 1000;    // the time we need to wait
+unsigned long previousMillisGetDataFromFirebase = 0; // millis() returns an unsigned long.
+void getDataFromFirebase()
+{
+  unsigned long currentMillis = millis(); // grab current time
+  // check if "interval" time has passed (1000 milliseconds)
+  if ((unsigned long)(currentMillis - previousMillisGetDataFromFirebase) >= intervalGetDataFromFirebase)
+  {
+    previousMillisGetDataFromFirebase = millis(); // grab current time as previous millis
 
-//     auto error = deserializeJson(doc, softSerial);
-//     if (error)
-//     {
-//       Serial.print(F("deserializeJson() failed with code "));
-//       Serial.println(error.c_str());
-//       return;
-//     }
+    if (Firebase.getString(firebaseData, node_path + "/CMD")){
+      if (firebaseData.dataType() == "string") {
+        cmdCode = firebaseData.stringData();
+        Serial.println(cmdCode);
+      }
+    } 
+  }
+}
 
-//     //String relay_status = doc["solenoid"];
-//     String header = doc["header"];
-//     if (header.isEmpty() || header == NULL || header == "null")
-//     {
-//       return;
-//     }
-//     else
-//     {
-//       Serial.println(header);
-//       Serial.println("JSON received and parsed");
-//     }
-
-//     // parse soil humidty
-//     for (int i = 0; i < 20; i++)
-//     {
-//       /* code */
-//       soilHumidityValue[i] = doc["soil_humidity"][i];
-//     }
-
-//     // parse ph value
-//     for (int i = 0; i < 20; i++)
-//     {
-//       /* code */
-//       phValue[i] = doc["ph"][i];
-//     }
-
-//     // parse solenoid primer
-
-//     // parse soil humidty
-//     for (int i = 0; i < 20; i++)
-//     {
-//       /* code */
-//       solenoidPrimerStatus[i] = doc["solenoid"][i];
-//     }
-
-//     // the rest of solenoid
-//     waterPumpStatus = doc["solenoid"][22];
-//     solenoidTreatStatus = doc["solenoid"][21];
-//     solenoidWaterStatus = doc["solenoid"][20];
-//   }
-// }
-
-// reeived
 
 // debug mode, print information to serial
 unsigned long intervalDEBUG = 1000;    // the time we need to wait
@@ -551,7 +487,7 @@ void setup()
   setupWiFI();
 
   // setup Time
-  // setupTime();
+  setupTime();
 
   // setup firebase
   setupFirebase();
@@ -563,21 +499,21 @@ void loop()
   // invoke read DHT
   readDHT22();
 
-  // read data recevied serial
-  // readSerialDataReceived();
-
   // invoke debug
   debug();
 
   // send data to firebase
   sendDataToFirebase();
 
+  // get data from firebase
+  getDataFromFirebase();
+
   // i2ccommunication
   sendToSlave();
   readFromSlave();
 
   // eztime
-  // events();
+  events();
 
   delay(500);
 }
