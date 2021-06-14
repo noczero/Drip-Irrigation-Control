@@ -12,6 +12,7 @@
 #include <ESP8266WiFi.h>
 #include <ezTime.h>
 #include <Wire.h>
+#include <SchedTask.h>			
 
 #define DEBUG // uncomment to debug data
 
@@ -46,17 +47,35 @@ FirebaseJson json;
 // datetime for automation
 Timezone IDTime;
 String dateTimeNow = "";
+String wateringTimeHours[2] = {"00:28", "17:00"}; // Water time on 7 AM and 5 PM
 
 // I2C ESP8266
 #define I2CAddressMaster 0x08
 #define pinSDA D1
 #define pinSCL D2
+#define RECEIVEBYTES 136
+#define VALIDROWS 56
 
 // decalare variable used
 String soilHumidityValue[20]; // array length 20
 int phValue[12];              // ph length 12
 String solenoidPrimerStatus[20];
 String waterPumpStatus, solenoidWaterStatus, solenoidTreatStatus;
+
+// validation
+bool isDataReceivedValid = false;
+
+// mode
+bool isWaterModeSchedule, isWaterMode, isTreatMode, isOfflineMode = false;
+
+// Scheduler
+void checkTime();
+SchedTask checkTimeTask (0, 1000, checkTime); // every minutes check
+
+
+
+
+// -- FUNCTION START --- 
 
 void setupI2CCom()
 {
@@ -73,8 +92,8 @@ void sendToSlave()
   //sprintf(commandData, commandFormat, cmdCode);
 
   // String to array
-  char responseChar[12];
-  cmdCode.toCharArray(responseChar, 12);
+  char responseChar[13];
+  cmdCode.toCharArray(responseChar, 13);
 
   Wire.beginTransmission(I2CAddressMaster); /* begin with device address 8 */
   Wire.write(responseChar);              /* sends hello string */
@@ -109,8 +128,7 @@ String reverseSoilHumidityData(String c)
   }
 }
 
-#define RECEIVEBYTES 136
-#define VALIDROWS 56
+
 void readFromSlave()
 {
   int nBytes = Wire.requestFrom(I2CAddressMaster, RECEIVEBYTES); /* request & read data of size 13 from slave */
@@ -154,6 +172,7 @@ void readFromSlave()
   // validation for parsing
   if (rows == VALIDROWS)
   {
+    isDataReceivedValid = true;
     Serial.print("Valid : ");
     Serial.println(receivedData[0]);
     solenoidWaterStatus = reverseSolenoidData(receivedData[41]);
@@ -309,7 +328,7 @@ void sendDataToFirebase()
 {
   unsigned long currentMillis = millis(); // grab current time
   // check if "interval" time has passed (1000 milliseconds)
-  if ((unsigned long)(currentMillis - previousMillisSendDataFirebase) >= intervalSendDataFirebase)
+  if (isDataReceivedValid && (unsigned long)(currentMillis - previousMillisSendDataFirebase) >= intervalSendDataFirebase)
   {
     previousMillisSendDataFirebase = millis(); // grab current time as previous millis
 
@@ -427,7 +446,7 @@ void debug()
     Serial.print(", pH : [ ");
 
     // parse ph value
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 12; i++)
     {
       /* code */
       Serial.print(phValue[i]);
@@ -515,5 +534,34 @@ void loop()
   // eztime
   events();
 
+
+  // Schedule Task
+  SchedBase::dispatcher();										// dispatch any tasks due
+
   delay(500);
 }
+
+void checkTime(){
+  // check time
+  String timeNow = IDTime.dateTime("H:i");  // 17:00, 18:00
+  Serial.println(timeNow);
+
+  // compare to array wateringTimeHours
+  for (int i = 0; i < 2; i++ ){
+    if (!isWaterModeSchedule && timeNow == wateringTimeHours[i]){
+      Serial.println("On Time");
+      isWaterModeSchedule = true; // set mode to true.
+      // String to array
+
+      String scheduleCmd = "ON,SCHED," + timeNow;
+      char responseChar[13];
+      scheduleCmd.toCharArray(responseChar, 13);
+
+      Wire.beginTransmission(I2CAddressMaster); /* begin with device address 8 */
+
+      Wire.write(responseChar);              /* sends hello string */
+      Wire.endTransmission();                   /* stop transmitting */
+    }
+  }
+}
+

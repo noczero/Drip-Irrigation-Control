@@ -286,7 +286,20 @@ void controlRelay(String action, String Code, String RelayID)
   OFF,WATER,1 -> will turn OFF water mode on SP with R1  
   OFF,TREAT,1 -> will turn OFF treat mode on SP with R1
   */
-
+ /*
+  Serial.print("[Mode]");
+  Serial.print(" - Water : ");
+  Serial.print(isWaterMode);
+  Serial.print(" - Treat : ");
+  Serial.print(isTreatMode);
+  Serial.print(" - ON : ");
+  Serial.print(isOnMode);
+  Serial.print(" - OFF : ");
+  Serial.print(isOffMode);
+  Serial.print(" - Schedule : ");
+  Serial.print(isWaterModeSchedule);
+  Serial.println();
+*/
   int relayIdx = RelayID.toInt() - 1;
   if (action == "ON")
   {
@@ -360,8 +373,8 @@ void readFromMaster(int howMany)
   Serial.println();
 
   // String to array
-  char responseChar[14];
-  response.toCharArray(responseChar, 14);
+  char responseChar[13];
+  response.toCharArray(responseChar, 13);
 
   // initialize first part (string, delimiter)
   char *ptr = strtok(responseChar, ",");
