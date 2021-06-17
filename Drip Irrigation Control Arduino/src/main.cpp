@@ -2,7 +2,7 @@
 To do :
 1. Read soil moist (done)
 2. Read all ph (done)
-3. Send data to esp8266 
+16. Send data to esp8266 
 4. Add logic for controling solenoid
 
 @note :
@@ -16,7 +16,7 @@ change
 #include <Adafruit_ADS1X15.h>
 #include <SchedTask.h>
 
-// #define DEBUG
+#define DEBUG
 
 // relay define
 #define R1 22
@@ -76,8 +76,9 @@ char dataSend[168];
 char allDataFormat[168] = "OK,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%c,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d";
 
 // Water Duration
-// const unsigned long WATERINGDURATION = 3000 * 60UL; // 3 minutes
-const unsigned long WATERINGDURATION = 2000; // 2 SECONDS
+const unsigned long WATERINGDURATION = 3000 * 60UL;       // 3 minutes
+const unsigned long WATERINGMANUALDURATION = 2000 * 60UL; // 2 minutes
+// const unsigned long WATERINGDURATION = 2000; // 2 SECONDS
 
 // Scheduler
 void turnOnSP1();
@@ -121,7 +122,7 @@ void turnOffSP19();
 void turnOnSP20();
 void turnOffSP20();
 
-SchedTask turnOnSP1Task(NOW, ONESHOT, turnOnSP1); // define the turn on task (dispatch now, one time)
+SchedTask turnOnSP1Task(NEVER, ONESHOT, turnOnSP1); // define the turn on task (dispatch now, one time)
 SchedTask turnOffSP1Task(NEVER, ONESHOT, turnOffSP1);
 
 SchedTask turnOnSP2Task(NEVER, ONESHOT, turnOnSP2); // define the turn on task (dispatch now, one time)
@@ -180,6 +181,11 @@ SchedTask turnOffSP19Task(NEVER, ONESHOT, turnOffSP19);
 
 SchedTask turnOnSP20Task(NEVER, ONESHOT, turnOnSP20); // define the turn on task (dispatch now, one time)
 SchedTask turnOffSP20Task(NEVER, ONESHOT, turnOffSP20);
+
+SchedTask turnOnScheduleArray[] = {turnOnSP1Task, turnOnSP2Task, turnOnSP3Task, turnOnSP4Task, turnOnSP5Task,
+                                   turnOnSP6Task, turnOnSP7Task, turnOnSP8Task, turnOnSP9Task, turnOnSP10Task,
+                                   turnOnSP11Task, turnOnSP12Task, turnOnSP13Task, turnOnSP14Task, turnOnSP15Task,
+                                   turnOnSP16Task, turnOnSP17Task, turnOnSP18Task, turnOnSP19Task, turnOnSP20Task};
 
 // -- FUNCTION START
 // send data to master
@@ -262,9 +268,9 @@ void treatMode()
 
 void offMode()
 {
-  digitalWrite(RSolenoidWater, HIGH); // ON
+  digitalWrite(RSolenoidWater, HIGH); // OFF
   digitalWrite(RSolenoidTreat, HIGH); // OFF
-  digitalWrite(RPump, HIGH);          // ON
+  digitalWrite(RPump, HIGH);          // OFF
 
   // turn off RELAY
   for (int i = 0; i < 20; i++)
@@ -273,6 +279,74 @@ void offMode()
   }
 }
 
+void startTaskByID(int relayIdx)
+{
+  switch (relayIdx)
+  {
+  case 0:
+    turnOnSP1Task.setNext(0);
+    break;
+  case 1:
+    turnOnSP2Task.setNext(0);
+    break;
+  case 2:
+    turnOnSP3Task.setNext(0);
+    break;
+  case 3:
+    turnOnSP4Task.setNext(0);
+    break;
+  case 4:
+    turnOnSP5Task.setNext(0);
+    break;
+  case 5:
+    turnOnSP6Task.setNext(0);
+    break;
+  case 6:
+    turnOnSP7Task.setNext(0);
+    break;
+  case 7:
+    turnOnSP8Task.setNext(0);
+    break;
+  case 8:
+    turnOnSP9Task.setNext(0);
+    break;
+  case 9:
+    turnOnSP10Task.setNext(0);
+    break;
+  case 10:
+    turnOnSP11Task.setNext(0);
+    break;
+  case 11:
+    turnOnSP12Task.setNext(0);
+    break;
+  case 12:
+    turnOnSP13Task.setNext(0);
+    break;
+  case 13:
+    turnOnSP14Task.setNext(0);
+    break;
+  case 14:
+    turnOnSP15Task.setNext(0);
+    break;
+  case 15:
+    turnOnSP16Task.setNext(0);
+    break;
+  case 16:
+    turnOnSP17Task.setNext(0);
+    break;
+  case 17:
+    turnOnSP18Task.setNext(0);
+    break;
+  case 18:
+    turnOnSP19Task.setNext(0);
+    break;
+  case 19:
+    turnOnSP20Task.setNext(0);
+    break;
+  }
+}
+
+String prevCommand = "";
 void controlRelay(String action, String Code, String RelayID)
 {
   /*
@@ -286,55 +360,67 @@ void controlRelay(String action, String Code, String RelayID)
   OFF,WATER,1 -> will turn OFF water mode on SP with R1  
   OFF,TREAT,1 -> will turn OFF treat mode on SP with R1
   */
-
+  String incomingCMD = action + Code + RelayID; //
   int relayIdx = RelayID.toInt() - 1;
-  if (action == "ON")
+  if (incomingCMD != prevCommand)
   {
-    isOnMode = true;
-    if (Code == "WATER")
+    if (action == "ON")
     {
-      isWaterMode = true;
-      digitalWrite(solenoidPrimerPins[relayIdx], LOW); //ON
-      waterMode();
-    }
-    else if (Code == "TREAT")
-    {
-      isTreatMode = true;
-      digitalWrite(solenoidPrimerPins[relayIdx], LOW); //ON
-      treatMode();
-    }
-    else if (!isWaterModeSchedule && Code == "SCHED")
-    {
-
-      // relayID become hours
-      int hours = relayIdx + 1;
-      if (hours == 7 || hours == 17)
+      isOnMode = true;
+      if (Code == "WATER")
       {
-        // schedule mode
-        Serial.println("Water mode scheduler start..");
-        isWaterModeSchedule = true; // set true water schedule;
+        isWaterMode = true;
+        digitalWrite(solenoidPrimerPins[relayIdx], LOW); //ON
+        waterMode();
+
+        // call task
+        startTaskByID(relayIdx);
+      }
+      else if (Code == "TREAT")
+      {
+        isTreatMode = true;
+        digitalWrite(solenoidPrimerPins[relayIdx], LOW); //ON
+        treatMode();
+
+        // call task
+        startTaskByID(relayIdx);
+      }
+      else if (!isWaterModeSchedule && Code == "SCHED")
+      {
+
+        // relayID become hours
+        int hours = relayIdx + 1;
+        if (hours == 7 || hours == 17 || hours == 23)
+        {
+          // schedule mode
+          Serial.println("Water mode scheduler start..");
+          isWaterModeSchedule = true; // set true water schedule;
+
+          turnOnSP1Task.setNext(0); // start first schedule
+        }
       }
     }
-  }
-  else if (action == "OFF")
-  {
-    isOffMode, isOnMode = true;
-    if (Code == "WATER")
+    else if (action == "OFF")
     {
-      isWaterMode = false;
-      digitalWrite(solenoidPrimerPins[relayIdx], HIGH); //OFF
-      waterMode();
+      isOffMode, isOnMode = true;
+      if (Code == "WATER")
+      {
+        isWaterMode = false;
+        digitalWrite(solenoidPrimerPins[relayIdx], HIGH); //OFF
+        waterMode();
+      }
+      else if (Code == "TREAT")
+      {
+        isTreatMode = false;
+        digitalWrite(solenoidPrimerPins[relayIdx], HIGH); //OFF
+        treatMode();
+      }
+      else
+      {
+        offMode();
+      }
     }
-    else if (Code == "TREAT")
-    {
-      isTreatMode = false;
-      digitalWrite(solenoidPrimerPins[relayIdx], HIGH); //OFF
-      treatMode();
-    }
-    else
-    {
-      offMode();
-    }
+    prevCommand = incomingCMD;
   }
 
   // turn off another
@@ -552,6 +638,30 @@ void readRelay()
   }
 }
 
+// will return true if relay for water is ON
+bool checkWaterModeON()
+{
+  int relayStatus = digitalRead(RSolenoidWater); // if 0 then return true [ON], 1 return false [OFF]
+  if (relayStatus == 0)
+  {
+    Serial.println("Solenoid Water : ON");
+    return true;
+  }
+  return false;
+}
+
+// will return true if relay for water is ON
+bool checkTreatModeON()
+{
+  int relayStatus = digitalRead(RSolenoidTreat);
+  if (relayStatus == 0)
+  {
+    Serial.println("Solenoid Treatmenr : ON");
+    return true;
+  }
+  return false;
+}
+
 unsigned long intervalMonitoring = 100;     // the time we need to wait
 unsigned long previousMillisMonitoring = 0; // millis() returns an unsigned long.
 void monitoring()
@@ -587,7 +697,7 @@ void ctrlR1()
 }
 
 // debug mode, print information to serial
-unsigned long intervalDEBUG = 500;     // the time we need to wait
+unsigned long intervalDEBUG = 1000;     // the time we need to wait
 unsigned long previousMillisDEBUG = 0; // millis() returns an unsigned long.
 void debug()
 {
@@ -685,548 +795,1128 @@ void loop()
 
 void turnOnSP1()
 {
+  Serial.println("Start task 1");
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[0] == 'L')
+  if (isWaterModeSchedule)
+  // water mode true and relay treat mode is OFF
   {
-    Serial.println("Watering SP1");
-    digitalWrite(solenoidPrimerPins[0], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[0] == 'L')
+    {
+      Serial.println("[Schedule] Watering SP1");
+      digitalWrite(solenoidPrimerPins[0], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP1Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP1Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP1..");
+      turnOffSP1Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP1..");
-    turnOffSP1Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP1");
+    turnOffSP1Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP1");
+    turnOffSP1Task.setNext(WATERINGMANUALDURATION);
   }
 }
 
 void turnOffSP1()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP2Task.setNext(0);
+    turnOnSP2Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP1");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP2()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[1] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP2");
-    digitalWrite(solenoidPrimerPins[1], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[1] == 'L')
+    {
+      Serial.println("Watering SP2");
+      digitalWrite(solenoidPrimerPins[1], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP2Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP2Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP2..");
+      turnOffSP2Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP2..");
-    turnOffSP2Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP2");
+    turnOffSP2Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP2");
+    turnOffSP2Task.setNext(WATERINGMANUALDURATION);
   }
 }
 
 void turnOffSP2()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP3Task.setNext(0);
+    turnOnSP3Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP2");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP3()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[2] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP3");
-    digitalWrite(solenoidPrimerPins[2], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[2] == 'L')
+    {
+      Serial.println("Watering SP3");
+      digitalWrite(solenoidPrimerPins[2], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP3Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP3Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP3..");
+      turnOffSP3Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP3..");
-    turnOffSP3Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP3");
+    turnOffSP3Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP3");
+    turnOffSP3Task.setNext(WATERINGMANUALDURATION);
   }
 }
 
 void turnOffSP3()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP4Task.setNext(0);
+    turnOnSP4Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP3");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP4()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[3] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP4");
-    digitalWrite(solenoidPrimerPins[3], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[3] == 'L')
+    {
+      Serial.println("Watering SP4");
+      digitalWrite(solenoidPrimerPins[3], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP4Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP4Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP4..");
+      turnOffSP4Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP4..");
-    turnOffSP4Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP4");
+    turnOffSP4Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP4");
+    turnOffSP4Task.setNext(WATERINGMANUALDURATION);
   }
 }
 
 void turnOffSP4()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP5Task.setNext(0);
+    turnOnSP5Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP4");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP5()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[4] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP5");
-    digitalWrite(solenoidPrimerPins[4], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[4] == 'L')
+    {
+      Serial.println("Watering SP5");
+      digitalWrite(solenoidPrimerPins[4], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP5Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP5Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP5..");
+      turnOffSP5Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP5..");
-    turnOffSP5Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP5");
+    turnOffSP5Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP5");
+    turnOffSP5Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP5()
 {
+
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP6Task.setNext(0);
+    turnOnSP6Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP5");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP6()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[5] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP6");
-    digitalWrite(solenoidPrimerPins[5], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[5] == 'L')
+    {
+      Serial.println("Watering SP6");
+      digitalWrite(solenoidPrimerPins[5], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP6Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP6Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP6..");
+      turnOffSP6Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP6..");
-    turnOffSP6Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP6");
+    turnOffSP6Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP6");
+    turnOffSP6Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP6()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP7Task.setNext(0);
+    turnOnSP7Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP6");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP7()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[6] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP7");
-    digitalWrite(solenoidPrimerPins[6], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[6] == 'L')
+    {
+      Serial.println("Watering SP7");
+      digitalWrite(solenoidPrimerPins[6], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP7Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP7Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP7..");
+      turnOffSP7Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP7..");
-    turnOffSP7Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP7");
+    turnOffSP7Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP7");
+    turnOffSP7Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP7()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP8Task.setNext(0);
+    turnOnSP8Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP7");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP8()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[7] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP8");
-    digitalWrite(solenoidPrimerPins[7], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[7] == 'L')
+    {
+      Serial.println("Watering SP8");
+      digitalWrite(solenoidPrimerPins[7], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP8Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP8Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP8..");
+      turnOffSP8Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP8..");
-    turnOffSP8Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP8");
+    turnOffSP8Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP8");
+    turnOffSP8Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP8()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP9Task.setNext(0);
+    turnOnSP9Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP8");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP9()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[8] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP9");
-    digitalWrite(solenoidPrimerPins[8], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[8] == 'L')
+    {
+      Serial.println("Watering SP9");
+      digitalWrite(solenoidPrimerPins[8], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP9Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP9Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP9..");
+      turnOffSP9Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP9..");
-    turnOffSP9Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP9");
+    turnOffSP9Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP9");
+    turnOffSP9Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP9()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP10Task.setNext(0);
+    turnOnSP10Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP9");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP10()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[9] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP10");
-    digitalWrite(solenoidPrimerPins[9], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[9] == 'L')
+    {
+      Serial.println("Watering SP10");
+      digitalWrite(solenoidPrimerPins[9], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP10Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP10Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP10..");
+      turnOffSP10Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP10..");
-    turnOffSP10Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP10");
+    turnOffSP10Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP10");
+    turnOffSP10Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP10()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP11Task.setNext(0);
+    turnOnSP11Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP10");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP11()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[10] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP11");
-    digitalWrite(solenoidPrimerPins[10], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[10] == 'L')
+    {
+      Serial.println("Watering SP11");
+      digitalWrite(solenoidPrimerPins[10], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP11Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP11Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP11..");
+      turnOffSP11Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP11..");
-    turnOffSP11Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP11");
+    turnOffSP11Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP11");
+    turnOffSP11Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP11()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP12Task.setNext(0);
+    turnOnSP12Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP11");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP12()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[11] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP12");
-    digitalWrite(solenoidPrimerPins[11], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[11] == 'L')
+    {
+      Serial.println("Watering SP12");
+      digitalWrite(solenoidPrimerPins[11], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP12Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP12Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP12..");
+      turnOffSP12Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP12..");
-    turnOffSP12Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP12");
+    turnOffSP12Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP12");
+    turnOffSP12Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP12()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP13Task.setNext(0);
+    turnOnSP13Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn Off SP12");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP13()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[12] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP13");
-    digitalWrite(solenoidPrimerPins[12], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[12] == 'L')
+    {
+      Serial.println("Watering SP13");
+      digitalWrite(solenoidPrimerPins[12], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP13Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP13Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP13..");
+      turnOffSP13Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP13..");
-    turnOffSP13Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP13");
+    turnOffSP13Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP13");
+    turnOffSP13Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP13()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP14Task.setNext(0);
+    turnOnSP14Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP13");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP14()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[13] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP14");
-    digitalWrite(solenoidPrimerPins[13], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[13] == 'L')
+    {
+      Serial.println("Watering SP14");
+      digitalWrite(solenoidPrimerPins[13], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP14Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP14Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP14..");
+      turnOffSP14Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP14..");
-    turnOffSP14Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP14");
+    turnOffSP14Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP14");
+    turnOffSP14Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP14()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP15Task.setNext(0);
+    turnOnSP15Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP14");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP15()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[14] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP15");
-    digitalWrite(solenoidPrimerPins[14], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[14] == 'L')
+    {
+      Serial.println("Watering SP15");
+      digitalWrite(solenoidPrimerPins[14], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP15Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP15Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP15..");
+      turnOffSP15Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP15..");
-    turnOffSP15Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP15");
+    turnOffSP15Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP15");
+    turnOffSP15Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP15()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP16Task.setNext(0);
+    turnOnSP16Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP16");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP16()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[15] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP16");
-    digitalWrite(solenoidPrimerPins[15], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[15] == 'L')
+    {
+      Serial.println("Watering SP16");
+      digitalWrite(solenoidPrimerPins[15], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP16Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP16Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP16..");
+      turnOffSP16Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP16..");
-    turnOffSP16Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP16");
+    turnOffSP16Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP16");
+    turnOffSP16Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP16()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP17Task.setNext(0);
+    turnOnSP17Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP16");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP17()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[16] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP17");
-    digitalWrite(solenoidPrimerPins[16], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[16] == 'L')
+    {
+      Serial.println("Watering SP17");
+      digitalWrite(solenoidPrimerPins[16], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP17Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP17Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP17..");
+      turnOffSP17Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP17..");
-    turnOffSP17Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP17");
+    turnOffSP17Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP17");
+    turnOffSP17Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP17()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP18Task.setNext(0);
+    turnOnSP18Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP17");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP18()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[17] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP18");
-    digitalWrite(solenoidPrimerPins[17], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[17] == 'L')
+    {
+      Serial.println("Watering SP18");
+      digitalWrite(solenoidPrimerPins[17], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP18Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP18Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP18..");
+      turnOffSP18Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP18..");
-    turnOffSP18Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP18");
+    turnOffSP18Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP18");
+    turnOffSP18Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP18()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP19Task.setNext(0);
+    turnOnSP19Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP18");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP19()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[18] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP19");
-    digitalWrite(solenoidPrimerPins[18], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[18] == 'L')
+    {
+      Serial.println("Watering SP19");
+      digitalWrite(solenoidPrimerPins[18], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP19Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP19Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP19..");
+      turnOffSP19Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP19..");
-    turnOffSP19Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP19");
+    turnOffSP19Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP19");
+    turnOffSP19Task.setNext(WATERINGMANUALDURATION);
   }
 }
 void turnOffSP19()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
     offMode();
-  // next task no wait
-  turnOnSP20Task.setNext(0);
+    turnOnSP20Task.setNext(0);
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP19");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }
 
 void turnOnSP20()
 {
   // check isWateringModeON is true and soil is low
-  if (isWaterModeSchedule && soilHumidityCode[19] == 'L')
+  if (isWaterModeSchedule)
   {
-    Serial.println("Watering SP20");
-    digitalWrite(solenoidPrimerPins[19], LOW); //ON
-    waterMode();
+    if (soilHumidityCode[19] == 'L')
+    {
+      Serial.println("Watering SP20");
+      digitalWrite(solenoidPrimerPins[19], LOW); //ON
+      waterMode();
 
-    // next task after WATERINGDURATION
-    turnOffSP20Task.setNext(WATERINGDURATION);
+      // next task after WATERINGDURATION
+      turnOffSP20Task.setNext(WATERINGDURATION);
+    }
+    else
+    {
+      // next task no wait
+      Serial.println("Skip, watering SP20..");
+      turnOffSP20Task.setNext(0);
+    }
   }
-  else
+
+  // manual mode for wateing
+  if (isWaterMode)
   {
-    // next task no wait
-    Serial.println("Skip, watering SP20..");
-    turnOffSP20Task.setNext(0);
+    // water mode true and relay treat mode is OFF
+    Serial.println("[Manual] Watering SP20");
+    turnOffSP20Task.setNext(WATERINGMANUALDURATION);
+  }
+
+  // manual mode for treatment
+  if (isTreatMode)
+  {
+    // treat mode true and relay water mode is OFF
+    Serial.println("[Manual] Treatment SP20");
+    turnOffSP20Task.setNext(WATERINGMANUALDURATION);
   }
 }
 
 void turnOffSP20()
 {
   if (isWaterModeSchedule)
+  {
+    // next sequence
+    Serial.println("Finished watering on schedule.");
     offMode();
-
-  isWaterModeSchedule = false; // set to false
-
-  // next task no wait
-  turnOnSP1Task.setNext(0); // run again
+  }
+  else
+  {
+    // finished
+    Serial.println("Turn OFF SP20");
+    isWaterMode = false;
+    isTreatMode = false;
+    offMode();
+  }
 }

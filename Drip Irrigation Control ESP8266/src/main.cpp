@@ -41,13 +41,13 @@ FirebaseData firebaseData;
 FirebaseJson json;
 
 // wifi configuration
-#define ssid "TP-Link_17D0"
-#define password "32118281123"
+#define ssid "NASTA BAWAH_plus"
+#define password "Nasta2b40"
 
 // datetime for automation
 Timezone IDTime;
 String dateTimeNow = "";
-String wateringTimeHours[2] = {"00:28", "17:00"}; // Water time on 7 AM and 5 PM
+String wateringTimeHours[2] = {"07:00", "17:00"}; // Water time on 7 AM and 5 PM
 
 // I2C ESP8266
 #define I2CAddressMaster 0x08
@@ -545,15 +545,14 @@ void checkTime(){
   // check time
   String timeNow = IDTime.dateTime("H:i");  // 17:00, 18:00
   Serial.println(timeNow);
-
+   
   // compare to array wateringTimeHours
   for (int i = 0; i < 2; i++ ){
     if (!isWaterModeSchedule && timeNow == wateringTimeHours[i]){
       Serial.println("On Time");
       isWaterModeSchedule = true; // set mode to true.
       // String to array
-
-      String scheduleCmd = "ON,SCHED," + timeNow;
+      String scheduleCmd = "ON,SCHED," + IDTime.dateTime("H");
       char responseChar[13];
       scheduleCmd.toCharArray(responseChar, 13);
 
@@ -561,6 +560,7 @@ void checkTime(){
 
       Wire.write(responseChar);              /* sends hello string */
       Wire.endTransmission();                   /* stop transmitting */
+    
     }
   }
 }
